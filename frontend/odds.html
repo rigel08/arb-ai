@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ArbAI — Live Odds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#05050F;--s1:#0A0A1A;--s2:#0F0F22;--s3:#13132A;
+  --b1:#1A1A35;--b2:#24244A;--b3:#2E2E58;
+  --acc:#A3FF12;--accg:rgba(163,255,18,0.07);
+  --txt:#EEEEF8;--sub:#7878A0;--mut:#35355A;
+  --live:#FF4560;--win:#22C55E;--lose:#EF4444;--gold:#F59E0B;--blue:#3B82F6;--purple:#A78BFA;
+  --stake:#1A7AF8;
+}
+html{font-size:16px}
+body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 70% 30% at 50% -5%,rgba(163,255,18,0.04) 0%,transparent 60%);pointer-events:none;z-index:0}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,69,96,.5)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(255,69,96,0)}}
+@keyframes liveblink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── SIDEBAR ── */
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:64px;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;align-items:center;padding:14px 0 20px;gap:3px;z-index:100;overflow-y:auto}
+.sidebar::-webkit-scrollbar{display:none}
+.logo-mark{width:36px;height:36px;background:var(--acc);border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;cursor:pointer;flex-shrink:0}
+.logo-mark svg{width:16px;height:16px;fill:#05050F}
+.stab{width:44px;height:44px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;color:var(--sub);cursor:pointer;transition:all 0.15s;flex-shrink:0}
+.stab:hover{background:var(--s2);color:var(--txt)}
+.stab.active{background:var(--accg);color:var(--acc);border:1px solid rgba(163,255,18,0.2)}
+.stab .ic{font-size:16px;line-height:1}
+.stab .lb{font-family:'JetBrains Mono',monospace;font-size:0.44rem;font-weight:600;letter-spacing:0.03em}
+.sb-bot{margin-top:auto;display:flex;flex-direction:column;gap:5px;align-items:center}
+.icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--b1);background:transparent;color:var(--sub);cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:12px;transition:all 0.15s}
+.icon-btn:hover{color:var(--acc);border-color:rgba(163,255,18,0.3);background:var(--accg)}
+
+/* ── MAIN ── */
+.main{margin-left:64px;min-height:100vh;position:relative;z-index:1}
+
+/* ── TOPBAR ── */
+.topbar{height:54px;background:rgba(5,5,15,0.9);backdrop-filter:blur(24px);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 20px;gap:10px;position:sticky;top:0;z-index:50}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--live);animation:pulse 2s ease infinite;flex-shrink:0}
+.tb-title{font-family:'Unbounded',sans-serif;font-size:0.82rem;font-weight:700;flex:1}
+.stake-badge{font-family:'JetBrains Mono',monospace;font-size:0.55rem;font-weight:600;background:rgba(26,122,248,0.1);border:1px solid rgba(26,122,248,0.25);border-radius:7px;padding:3px 8px;color:var(--stake)}
+.meta-lbl{font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:var(--sub)}
+.nav-link{font-family:'JetBrains Mono',monospace;font-size:0.58rem;font-weight:600;color:var(--sub);text-decoration:none;border:1px solid var(--b1);border-radius:8px;padding:5px 11px;transition:all 0.15s}
+.nav-link:hover{color:var(--acc);border-color:rgba(163,255,18,0.3)}
+.nav-link.active{color:var(--acc);border-color:rgba(163,255,18,0.3);background:var(--accg)}
+
+#pb{position:fixed;top:0;left:64px;right:0;height:2px;z-index:999}
+#pf{height:100%;background:var(--acc);transition:width 1s linear}
+
+/* ── SPORT TABS ── */
+.sport-tabs{background:var(--s1);border-bottom:1px solid var(--b1);display:flex;overflow-x:auto;position:sticky;top:54px;z-index:40}
+.sport-tabs::-webkit-scrollbar{display:none}
+.sport-tab{flex-shrink:0;padding:10px 16px;font-family:'JetBrains Mono',monospace;font-size:0.58rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--sub);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all 0.15s;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.sport-tab:hover{color:var(--txt)}
+.sport-tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.sport-tab .tab-count{font-size:0.48rem;background:var(--s2);border:1px solid var(--b1);border-radius:5px;padding:1px 5px;color:var(--mut)}
+.sport-tab.active .tab-count{background:var(--accg);border-color:rgba(163,255,18,0.2);color:var(--acc)}
+.live-indicator{width:5px;height:5px;border-radius:50%;background:var(--live);animation:liveblink 1.5s ease infinite;flex-shrink:0}
+
+/* ── STATS HEADER ── */
+.stats-row{display:flex;gap:10px;padding:14px 20px;overflow-x:auto;border-bottom:1px solid var(--b1)}
+.stats-row::-webkit-scrollbar{display:none}
+.sc{background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:10px 15px;flex-shrink:0;min-width:110px}
+.sc-l{font-family:'JetBrains Mono',monospace;font-size:0.5rem;color:var(--sub);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px}
+.sc-v{font-family:'Unbounded',sans-serif;font-size:1.1rem;font-weight:700;line-height:1}
+.sc-v.g{color:var(--acc)}.sc-v.r{color:var(--live)}.sc-v.b{color:var(--blue)}
+.sc-s{font-size:0.62rem;color:var(--sub);margin-top:2px}
+
+/* ── FILTER ROW ── */
+.filter-row{display:flex;align-items:center;gap:8px;padding:12px 20px;border-bottom:1px solid var(--b1);flex-wrap:wrap}
+.fbtn{font-family:'JetBrains Mono',monospace;font-size:0.56rem;font-weight:600;padding:4px 11px;border-radius:20px;border:1px solid var(--b1);background:none;color:var(--sub);cursor:pointer;transition:all 0.15s}
+.fbtn:hover{color:var(--txt);border-color:var(--b2)}
+.fbtn.active{background:var(--accg);color:var(--acc);border-color:rgba(163,255,18,0.3)}
+.fbtn.live-f{background:rgba(255,69,96,0.08);color:var(--live);border-color:rgba(255,69,96,0.2)}
+.fbtn.live-f.active{background:rgba(255,69,96,0.15);border-color:var(--live)}
+.search-input{flex:1;max-width:260px;background:var(--s1);border:1px solid var(--b1);border-radius:9px;color:var(--txt);font-family:'JetBrains Mono',monospace;font-size:0.65rem;padding:5px 12px;outline:none;transition:border-color 0.15s}
+.search-input:focus{border-color:rgba(163,255,18,0.25)}
+.search-input::placeholder{color:var(--mut)}
+
+/* ── EVENTS GRID ── */
+.content{padding:16px 20px 80px}
+.events-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+
+/* ── EVENT CARD ── */
+.ecard{background:var(--s1);border:1px solid var(--b1);border-radius:16px;overflow:hidden;animation:fadeUp 0.3s ease both;transition:border-color 0.18s,box-shadow 0.18s}
+.ecard:hover{border-color:var(--b2);box-shadow:0 8px 28px rgba(0,0,0,0.3)}
+.ecard.live{border-left:3px solid var(--live)}
+.ecard.value{border-right:3px solid var(--acc)}
+
+/* Card header */
+.ec-head{padding:12px 14px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ec-league{font-family:'JetBrains Mono',monospace;font-size:0.52rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.ec-sport{font-family:'JetBrains Mono',monospace;font-size:0.5rem;font-weight:600;padding:2px 6px;border-radius:5px;background:var(--s2);border:1px solid var(--b1);color:var(--sub);flex-shrink:0}
+.ec-live{font-family:'JetBrains Mono',monospace;font-size:0.48rem;font-weight:700;color:var(--live);letter-spacing:0.12em;display:flex;align-items:center;gap:3px;flex-shrink:0}
+.live-dot-sm{width:5px;height:5px;border-radius:50%;background:var(--live);animation:liveblink 1.5s ease infinite}
+
+/* Teams */
+.ec-match{padding:0 14px 10px;font-family:'Unbounded',sans-serif;font-size:0.78rem;font-weight:700;color:var(--txt);line-height:1.35}
+.ec-vs{color:var(--mut);font-size:0.65rem;font-weight:400;display:block;margin:1px 0}
+
+/* Start time */
+.ec-time{padding:0 14px 10px;font-family:'JetBrains Mono',monospace;font-size:0.56rem;color:var(--sub)}
+
+/* Divider */
+.ec-div{height:1px;background:var(--b1);margin:0 14px}
+
+/* Odds row */
+.ec-odds{padding:10px 14px 12px;display:flex;gap:6px}
+.odd-btn{flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:8px 6px;text-align:center;cursor:pointer;transition:all 0.15s;position:relative}
+.odd-btn:hover{border-color:var(--b2);background:var(--s3);transform:translateY(-1px)}
+.odd-btn.best{border-color:rgba(163,255,18,0.25);background:var(--accg)}
+.odd-name{font-family:'JetBrains Mono',monospace;font-size:0.52rem;color:var(--sub);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.odd-val{font-family:'Unbounded',sans-serif;font-size:0.95rem;font-weight:700;color:var(--txt);line-height:1}
+.odd-prob{font-family:'JetBrains Mono',monospace;font-size:0.5rem;color:var(--sub);margin-top:3px}
+.odd-btn.best .odd-val{color:var(--acc)}
+
+/* Margin footer */
+.ec-footer{padding:6px 14px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ec-margin{font-family:'JetBrains Mono',monospace;font-size:0.52rem}
+.ec-margin.low{color:var(--win)}
+.ec-margin.mid{color:var(--gold)}
+.ec-margin.high{color:var(--lose)}
+.ec-stake-link{font-family:'JetBrains Mono',monospace;font-size:0.5rem;color:var(--stake);text-decoration:none;border:1px solid rgba(26,122,248,0.2);border-radius:5px;padding:2px 6px;transition:all 0.15s}
+.ec-stake-link:hover{background:rgba(26,122,248,0.08);border-color:rgba(26,122,248,0.4)}
+
+/* Skeleton */
+.skel{background:linear-gradient(90deg,var(--s1) 25%,var(--s2) 50%,var(--s1) 75%);background-size:200%;animation:shimmer 1.5s ease infinite;border-radius:16px}
+.empty{text-align:center;padding:60px 20px;color:var(--sub);font-size:0.85rem;grid-column:1/-1}
+.empty code{font-family:'JetBrains Mono',monospace;font-size:0.78rem;background:var(--s2);border:1px solid var(--b1);border-radius:5px;padding:2px 8px;color:var(--acc)}
+
+/* No token notice */
+.no-token{background:var(--s1);border:1px solid rgba(26,122,248,0.25);border-radius:14px;padding:28px 24px;text-align:center;margin:20px;grid-column:1/-1}
+.no-token h3{font-family:'Unbounded',sans-serif;font-size:0.9rem;font-weight:700;margin-bottom:10px;color:var(--txt)}
+.no-token p{font-size:0.8rem;color:var(--sub);line-height:1.65;margin-bottom:16px}
+.no-token code{font-family:'JetBrains Mono',monospace;font-size:0.75rem;background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:8px 14px;display:block;color:var(--acc);text-align:left;margin:10px 0}
+.no-token a{color:var(--stake);text-decoration:none;border-bottom:1px solid rgba(26,122,248,0.3)}
+
+@media(max-width:768px){.sidebar{width:50px}.main{margin-left:50px}#pb{left:50px}.events-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="logo-mark" onclick="location.href='index.html'">
+    <svg viewBox="0 0 20 20"><path d="M3 10L10 3L17 10L10 17Z"/></svg>
+  </div>
+  <!-- Sport quick-jumps -->
+  <button class="stab active" onclick="filterSport('all',this)" title="All Sports"><span class="ic">🌐</span><span class="lb">ALL</span></button>
+  <button class="stab" onclick="filterSport('football',this)" title="Soccer"><span class="ic">⚽</span><span class="lb">SOC</span></button>
+  <button class="stab" onclick="filterSport('american-football',this)" title="NFL"><span class="ic">🏈</span><span class="lb">NFL</span></button>
+  <button class="stab" onclick="filterSport('basketball',this)" title="NBA"><span class="ic">🏀</span><span class="lb">NBA</span></button>
+  <button class="stab" onclick="filterSport('baseball',this)" title="MLB"><span class="ic">⚾</span><span class="lb">MLB</span></button>
+  <button class="stab" onclick="filterSport('ice-hockey',this)" title="NHL"><span class="ic">🏒</span><span class="lb">NHL</span></button>
+  <button class="stab" onclick="filterSport('tennis',this)" title="Tennis"><span class="ic">🎾</span><span class="lb">TEN</span></button>
+  <button class="stab" onclick="filterSport('mma',this)" title="MMA"><span class="ic">🥊</span><span class="lb">MMA</span></button>
+  <button class="stab" onclick="filterSport('cricket',this)" title="Cricket"><span class="ic">🏏</span><span class="lb">CRI</span></button>
+  <button class="stab" onclick="filterSport('esports',this)" title="Esports"><span class="ic">🎮</span><span class="lb">EPS</span></button>
+  <button class="stab" onclick="filterSport('boxing',this)" title="Boxing"><span class="ic">🥊</span><span class="lb">BOX</span></button>
+  <div class="sb-bot">
+    <a class="icon-btn" href="index.html" title="Picks">🎯</a>
+    <a class="icon-btn" href="chat.html" title="AI Chat">💬</a>
+  </div>
+</nav>
+
+<div id="pb"><div id="pf" style="width:100%"></div></div>
+
+<div class="main">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="live-dot"></div>
+    <div class="tb-title">Live Odds</div>
+    <div class="stake-badge">The Odds API</div>
+    <div class="meta-lbl" id="meta-lbl">Loading…</div>
+    <a class="nav-link" href="index.html">Picks</a>
+    <a class="nav-link active" href="odds.html">Odds</a>
+    <a class="nav-link" href="chat.html">AI Chat</a>
+  </div>
+
+  <!-- SPORT TABS -->
+  <div class="sport-tabs" id="sport-tabs">
+    <button class="sport-tab active" onclick="switchTab('all',this)">
+      <span>All Sports</span><span class="tab-count" id="tc-all">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('football',this)">
+      <span>⚽ Soccer</span><span class="tab-count" id="tc-football">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('american-football',this)">
+      <span>🏈 American Football</span><span class="tab-count" id="tc-american-football">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('basketball',this)">
+      <span>🏀 Basketball</span><span class="tab-count" id="tc-basketball">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('baseball',this)">
+      <span>⚾ Baseball</span><span class="tab-count" id="tc-baseball">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('ice-hockey',this)">
+      <span>🏒 Ice Hockey</span><span class="tab-count" id="tc-ice-hockey">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('tennis',this)">
+      <span>🎾 Tennis</span><span class="tab-count" id="tc-tennis">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('mma',this)">
+      <span>🥊 MMA</span><span class="tab-count" id="tc-mma">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('cricket',this)">
+      <span>🏏 Cricket</span><span class="tab-count" id="tc-cricket">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('esports',this)">
+      <span>🎮 Esports</span><span class="tab-count" id="tc-esports">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('boxing',this)">
+      <span>🥊 Boxing</span><span class="tab-count" id="tc-boxing">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('table-tennis',this)">
+      <span>🏓 Table Tennis</span><span class="tab-count" id="tc-table-tennis">—</span>
+    </button>
+    <button class="sport-tab" onclick="switchTab('volleyball',this)">
+      <span>🏐 Volleyball</span><span class="tab-count" id="tc-volleyball">—</span>
+    </button>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="sc"><div class="sc-l">Live Now</div><div class="sc-v r" id="s-live">—</div><div class="sc-s">Events in progress</div></div>
+    <div class="sc"><div class="sc-l">Total Events</div><div class="sc-v" id="s-total">—</div><div class="sc-s">Live + upcoming</div></div>
+    <div class="sc"><div class="sc-l">Best Margin</div><div class="sc-v g" id="s-margin">—</div><div class="sc-s">Lowest bookmaker %</div></div>
+    <div class="sc"><div class="sc-l">Sports Active</div><div class="sc-v b" id="s-sports">—</div><div class="sc-s">With available odds</div></div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filter-row">
+    <button class="fbtn live-f active" id="btn-all-f" onclick="setLiveFilter('all',this)">All</button>
+    <button class="fbtn live-f" id="btn-live-f" onclick="setLiveFilter('live',this)">🔴 Live Only</button>
+    <button class="fbtn" id="btn-value-f" onclick="setLiveFilter('value',this)">💎 Best Value</button>
+    <input class="search-input" id="search" type="text" placeholder="Search team, league…" oninput="applyFilters()"/>
+  </div>
+
+  <!-- EVENTS -->
+  <div class="content">
+    <div class="events-grid" id="grid">
+      <div class="skel" style="height:180px"></div>
+      <div class="skel" style="height:180px"></div>
+      <div class="skel" style="height:180px"></div>
+      <div class="skel" style="height:180px"></div>
+      <div class="skel" style="height:180px"></div>
+      <div class="skel" style="height:180px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+let allEvents   = [];   // flat list of all loaded events
+let activeTab   = 'all';
+let liveFilter  = 'all';
+let searchTerm  = '';
+let cd = 1800;
+let lastUp = Date.now();
+
+const SPORT_LABELS = {
+  football:'Soccer','american-football':'NFL / NCAAF',basketball:'NBA / Basketball',
+  baseball:'MLB / Baseball','ice-hockey':'NHL / Hockey',tennis:'Tennis',
+  mma:'MMA / UFC',boxing:'Boxing',cricket:'Cricket',esports:'Esports',
+  'table-tennis':'Table Tennis',volleyball:'Volleyball'
+};
+
+// ── Progress bar ────────────────────────────────────────────────────────────
+setInterval(()=>{
+  cd--; if(cd<=0){cd=1800; load();}
+  document.getElementById('pf').style.width=((cd/1800)*100)+'%';
+  document.getElementById('meta-lbl').textContent=
+    `Updated ${Math.floor((Date.now()-lastUp)/1000)}s ago · via The Odds API`;
+},1000);
+
+// ── Tab switching ───────────────────────────────────────────────────────────
+function switchTab(sport, el){
+  document.querySelectorAll('.sport-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  activeTab = sport;
+  applyFilters();
+}
+
+function filterSport(sport, el){
+  document.querySelectorAll('.stab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  // Also activate the matching tab
+  const tab = document.querySelector(`.sport-tab[onclick*="'${sport}'"]`);
+  if(tab){
+    document.querySelectorAll('.sport-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+  }
+  activeTab = sport;
+  applyFilters();
+}
+
+function setLiveFilter(f, el){
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  liveFilter = f;
+  if(f==='value'){
+    // Sort by margin
+    applyFilters(true);
+  } else {
+    applyFilters();
+  }
+}
+
+// ── Format time ─────────────────────────────────────────────────────────────
+function fmtTime(str){
+  if(!str) return '';
+  try{
+    const d = new Date(str);
+    const now = new Date();
+    const diff = d - now;
+    if(diff < 0) return 'Started';
+    if(diff < 3600000) return `${Math.floor(diff/60000)}m`;
+    if(diff < 86400000) return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    return d.toLocaleDateString([],{month:'short',day:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  }catch{return '';}
+}
+
+// ── Margin color ────────────────────────────────────────────────────────────
+function marginClass(m){
+  if(m==null) return '';
+  if(m<=3)  return 'low';
+  if(m<=6)  return 'mid';
+  return 'high';
+}
+
+// ── Find best odds outcome ──────────────────────────────────────────────────
+function bestOutcome(outcomes){
+  if(!outcomes||!outcomes.length) return null;
+  return outcomes.reduce((b,o)=>o.odds>b.odds?o:b, outcomes[0]);
+}
+
+// ── Render one event card ───────────────────────────────────────────────────
+function renderCard(ev, i){
+  const isLive  = ev.live;
+  const best    = bestOutcome(ev.outcomes);
+  const isValue = ev.margin!=null && ev.margin <= 3;
+
+  const timeStr = isLive
+    ? `<div class="ec-live"><div class="live-dot-sm"></div>LIVE</div>`
+    : ``;
+
+  const matchHtml = ev.home && ev.away
+    ? `${ev.away}<span class="ec-vs">vs</span>${ev.home}`
+    : (ev.match || 'Match');
+
+  const oddsHtml = (ev.outcomes||[]).map(o=>{
+    const isBest = best && o.name===best.name;
+    return `<div class="odd-btn${isBest?' best':''}">
+      <div class="odd-name">${o.name}</div>
+      <div class="odd-val">${o.odds.toFixed(2)}</div>
+      <div class="odd-prob">${o.implied_prob}%</div>
+    </div>`;
+  }).join('');
+
+
+  return `
+  <div class="ecard ${isLive?'live':''} ${isValue?'value':''}" style="animation-delay:${(i%12)*0.04}s">
+    <div class="ec-head">
+      <div class="ec-league">${ev.league||''}</div>
+      <div class="ec-sport">${SPORT_LABELS[ev.sport_slug]||ev.sport_label||ev.sport_slug}</div>
+      ${timeStr}
+    </div>
+    <div class="ec-match">${matchHtml}</div>
+    ${!isLive&&ev.start_time?`<div class="ec-time">⏰ ${fmtTime(ev.start_time)}</div>`:''}
+    <div class="ec-div"></div>
+    <div class="ec-odds">${oddsHtml||'<div style="color:var(--sub);font-size:0.72rem;padding:8px">No odds available</div>'}</div>
+    <div class="ec-footer">
+      <div class="ec-margin ${marginClass(ev.margin)}">
+        ${ev.margin!=null?`Margin: ${ev.margin.toFixed(2)}% ${ev.margin<=3?'✓ Low':''}`:' '}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Apply filters and render ────────────────────────────────────────────────
+function applyFilters(sortByMargin=false){
+  let events = [...allEvents];
+
+  // Sport filter
+  if(activeTab!=='all'){
+    events = events.filter(e=>e.sport_slug===activeTab);
+  }
+
+  // Live filter
+  if(liveFilter==='live'){
+    events = events.filter(e=>e.live);
+  }
+
+  // Search
+  const q = document.getElementById('search').value.toLowerCase();
+  if(q){
+    events = events.filter(e=>
+      (e.home||'').toLowerCase().includes(q) ||
+      (e.away||'').toLowerCase().includes(q) ||
+      (e.league||'').toLowerCase().includes(q) ||
+      (e.match||'').toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  if(liveFilter==='value'){
+    events.sort((a,b)=>(a.margin||99)-(b.margin||99));
+  } else {
+    events.sort((a,b)=>(b.live?1:0)-(a.live?1:0));
+  }
+
+  renderGrid(events);
+}
+
+function renderGrid(events){
+  const grid = document.getElementById('grid');
+  if(!events.length){
+    grid.innerHTML='<div class="empty">No events found for this filter</div>';
+    return;
+  }
+  grid.innerHTML = events.slice(0,80).map((ev,i)=>renderCard(ev,i)).join('');
+}
+
+// ── Update tab counts ───────────────────────────────────────────────────────
+function updateCounts(data){
+  let total=0, totalLive=0, activeSports=0, bestMargin=99;
+  const sports = data.sports || {};
+
+  for(const [slug, info] of Object.entries(sports)){
+    const count = info.total||0;
+    const live  = info.live||0;
+    total += count; totalLive += live;
+    if(count>0) activeSports++;
+
+    // Find best margin across all events
+    for(const ev of (info.events||[])){
+      if(ev.margin!=null && ev.margin>0 && ev.margin<bestMargin){
+        bestMargin=ev.margin;
+      }
+    }
+
+    const tc = document.getElementById(`tc-${slug}`);
+    if(tc){
+      tc.textContent = live>0 ? `${count} 🔴${live}` : count;
+    }
+  }
+
+  // All tab count
+  const tcAll = document.getElementById('tc-all');
+  if(tcAll) tcAll.textContent = totalLive>0?`${total} 🔴${totalLive}`:total;
+
+  document.getElementById('s-live').textContent  = totalLive;
+  document.getElementById('s-total').textContent = total;
+  document.getElementById('s-margin').textContent = bestMargin<99?bestMargin.toFixed(2)+'%':'—';
+  document.getElementById('s-sports').textContent = activeSports;
+}
+
+// ── Main load ───────────────────────────────────────────────────────────────
+async function load(){
+  try{
+    const res  = await fetch(`${API}/api/live-odds`);
+    if(!res.ok){
+      const err = await res.json();
+      if(res.status===503){
+        // No token
+        document.getElementById('grid').innerHTML=`
+          <div class="no-token">
+            <h3>Odds API key required</h3>
+            <p>Live odds come from The Odds API. Copy <code>.env.example</code> to <code>.env</code> and set:</p>
+            <code>ODDS_API_KEY=your_odds_api_key</code>
+            <p>A free key is available at <a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a>. Restart the server afterwards.</p>
+            <p style="margin-top:12px;font-size:0.72rem;color:var(--mut)">Error: ${err.detail||'No token'}</p>
+          </div>`;
+        document.getElementById('meta-lbl').textContent='Token required';
+        return;
+      }
+      throw new Error(err.detail||'Server error');
+    }
+
+    const data = await res.json();
+    updateCounts(data);
+
+    // Flatten all events
+    allEvents = [];
+    for(const info of Object.values(data.sports||{})){
+      allEvents.push(...(info.events||[]));
+    }
+
+    applyFilters();
+    lastUp = Date.now(); cd = 1800;
+    document.getElementById('meta-lbl').textContent=
+      `${data.total_events||0} events · ${data.total_live||0} live — The Odds API`;
+
+  }catch(e){
+    document.getElementById('grid').innerHTML=
+      `<div class="empty">Backend offline — run: <code>uvicorn app:app --reload</code><br/><span style="font-size:0.72rem;color:var(--mut);margin-top:8px;display:block">${e.message}</span></div>`;
+    document.getElementById('meta-lbl').textContent='Error';
+  }
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ArbAI — Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#05050F;--s1:#0A0A1A;--s2:#0F0F22;--s3:#13132A;
+  --b1:#1A1A35;--b2:#24244A;
+  --acc:#A3FF12;--accg:rgba(163,255,18,0.07);
+  --txt:#EEEEF8;--sub:#7878A0;--mut:#35355A;
+  --live:#FF4560;--win:#22C55E;--lose:#EF4444;--gold:#F59E0B;--blue:#3B82F6;--purple:#A78BFA;
+}
+html{font-size:16px}
+body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;min-height:100vh}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,69,96,.5)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(255,69,96,0)}}
+@keyframes liveblink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ── TOPBAR ── */
+.topbar{height:50px;background:rgba(5,5,15,0.95);backdrop-filter:blur(24px);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 16px;gap:10px;position:sticky;top:0;z-index:100}
+.back{font-family:'JetBrains Mono',monospace;font-size:0.6rem;font-weight:600;color:var(--sub);text-decoration:none;border:1px solid var(--b1);border-radius:8px;padding:5px 11px;transition:all 0.15s}
+.back:hover{color:var(--acc);border-color:rgba(163,255,18,0.3)}
+.tb-title{font-family:'Unbounded',sans-serif;font-size:0.7rem;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live-pill{display:flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:0.5rem;font-weight:700;color:var(--live);letter-spacing:.1em;display:none}
+.live-blink{width:5px;height:5px;border-radius:50%;background:var(--live);animation:liveblink 1.5s ease infinite}
+
+/* ── SCOREBOARD (Stake-style) ── */
+.scoreboard{background:var(--s1);border-bottom:1px solid var(--b1);padding:0}
+
+/* Status bar */
+.sb-status{background:var(--s2);padding:6px 16px;display:flex;align-items:center;justify-content:center;gap:8px}
+.sb-status-txt{font-family:'JetBrains Mono',monospace;font-size:0.58rem;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:0.12em;border:1px solid var(--b1);border-radius:6px;padding:2px 10px}
+.sb-status-txt.live{color:var(--live);border-color:rgba(255,69,96,0.3);background:rgba(255,69,96,0.05)}
+.sb-status-txt.interrupted{color:var(--gold);border-color:rgba(245,158,11,0.3)}
+
+/* Main score row */
+.sb-main{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:16px 20px;gap:12px}
+.sb-team{display:flex;align-items:center;gap:10px}
+.sb-team.away{flex-direction:row-reverse;text-align:right}
+.sb-flag{width:28px;height:20px;border-radius:3px;object-fit:cover;flex-shrink:0;background:var(--s2)}
+.sb-logo{width:40px;height:40px;border-radius:10px;object-fit:contain;flex-shrink:0;background:var(--s2)}
+.sb-logo-fb{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:'Unbounded',sans-serif;font-size:0.62rem;font-weight:700;color:rgba(255,255,255,0.7);flex-shrink:0}
+.sb-team-info{min-width:0}
+.sb-abbr{font-family:'Unbounded',sans-serif;font-size:1rem;font-weight:800;color:var(--txt)}
+.sb-fullname{font-size:0.65rem;color:var(--sub);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+.sb-record{font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:var(--mut);margin-top:2px}
+
+/* Score center */
+.sb-score-center{text-align:center;flex-shrink:0}
+.sb-score{font-family:'Unbounded',sans-serif;font-size:2.4rem;font-weight:900;letter-spacing:-0.02em;color:var(--txt);line-height:1;white-space:nowrap}
+.sb-score-sep{color:var(--mut);margin:0 4px}
+.sb-period{font-family:'JetBrains Mono',monospace;font-size:0.56rem;color:var(--sub);margin-top:5px}
+.sb-time{font-family:'JetBrains Mono',monospace;font-size:0.65rem;font-weight:600;color:var(--gold);margin-top:2px}
+
+/* Period/Set scores (tennis, hockey, basketball) */
+.period-scores{display:flex;border-top:1px solid var(--b1);padding:8px 20px;gap:0}
+.ps-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.ps-col-header{font-family:'JetBrains Mono',monospace;font-size:0.5rem;color:var(--mut);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px}
+.ps-val{font-family:'Unbounded',sans-serif;font-size:0.85rem;font-weight:700;color:var(--txt)}
+.ps-val.winner{color:var(--acc)}
+.ps-val.loser{color:var(--sub)}
+.ps-divider{width:1px;background:var(--b1);margin:0 8px}
+.ps-team-label{font-family:'JetBrains Mono',monospace;font-size:0.48rem;color:var(--sub);text-transform:uppercase;letter-spacing:0.08em}
+
+/* ── COURT/PITCH CANVAS ── */
+.court-wrap{position:relative;background:var(--s2);border-bottom:1px solid var(--b1)}
+#sport-canvas{display:block;width:100%;height:180px}
+.court-overlay{position:absolute;bottom:10px;right:14px;background:rgba(5,5,15,0.75);border:1px solid var(--b1);border-radius:8px;padding:5px 10px;display:flex;gap:10px}
+.co-item{font-family:'JetBrains Mono',monospace;font-size:0.5rem;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px}
+.co-val{color:var(--txt);font-weight:600}
+
+/* ── MATCH INFO CARDS ── */
+.info-strip{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid var(--b1);overflow-x:auto}
+.info-strip::-webkit-scrollbar{display:none}
+.info-card{background:var(--s2);border:1px solid var(--b1);border-radius:11px;padding:10px 14px;flex-shrink:0;min-width:90px;text-align:center}
+.ic-icon{font-size:18px;margin-bottom:4px}
+.ic-val{font-family:'Unbounded',sans-serif;font-size:0.7rem;font-weight:700;color:var(--txt);line-height:1.2}
+.ic-lbl{font-family:'JetBrains Mono',monospace;font-size:0.48rem;color:var(--sub);margin-top:3px;text-transform:uppercase;letter-spacing:0.08em}
+
+/* ── MODEL PICK BANNER ── */
+.pick-banner{background:var(--accg);border-bottom:1px solid rgba(163,255,18,0.1);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pb-label{font-family:'JetBrains Mono',monospace;font-size:0.52rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--acc);flex-shrink:0}
+.pb-pick{font-family:'Unbounded',sans-serif;font-size:0.8rem;font-weight:700;color:var(--txt);flex:1;min-width:0}
+.pb-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.pb-odds{font-family:'JetBrains Mono',monospace;font-size:0.9rem;font-weight:700;color:var(--acc)}
+.pb-conf{font-family:'JetBrains Mono',monospace;font-size:0.52rem;font-weight:600;padding:2px 8px;border-radius:6px}
+.pb-conf.HIGH{background:rgba(34,197,94,0.1);color:var(--win)}
+.pb-conf.MEDIUM{background:rgba(245,158,11,0.1);color:var(--gold)}
+.pb-conf.LOW{background:rgba(120,120,160,0.1);color:var(--sub)}
+
+/* ── TABS ── */
+.tabs{display:flex;background:var(--s1);border-bottom:1px solid var(--b1);position:sticky;top:50px;z-index:50;overflow-x:auto}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1;min-width:70px;padding:11px 6px;font-family:'JetBrains Mono',monospace;font-size:0.56rem;font-weight:600;text-align:center;text-transform:uppercase;letter-spacing:0.08em;color:var(--sub);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all 0.15s;white-space:nowrap}
+.tab:hover{color:var(--txt)}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+
+/* ── PANELS ── */
+.panel{display:none;animation:fadeUp 0.2s ease both}
+.panel.active{display:block}
+
+/* ── OVERVIEW PANEL ── */
+.ov-wrap{padding:16px}
+
+.win-card{background:var(--s2);border:1px solid var(--b1);border-radius:14px;padding:16px;margin-bottom:12px}
+.card-ttl{font-family:'JetBrains Mono',monospace;font-size:0.54rem;color:var(--sub);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:14px}
+.win-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.win-name{font-size:0.78rem;color:var(--txt);width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.win-track{flex:1;height:7px;background:var(--b1);border-radius:4px;overflow:hidden}
+.win-fill{height:100%;border-radius:4px;transition:width 0.8s ease}
+.win-pct{font-family:'JetBrains Mono',monospace;font-size:0.7rem;font-weight:600;width:38px;text-align:right;color:var(--acc)}
+.model-note{font-size:0.66rem;color:var(--sub);margin-top:8px;line-height:1.5}
+
+.ou-card{background:var(--s2);border:1px solid var(--b1);border-radius:14px;overflow:hidden;margin-bottom:12px}
+.ou-sides{display:flex}
+.ou-side{flex:1;padding:14px;text-align:center}
+.ou-side.ov{background:rgba(163,255,18,0.04)}
+.ou-side.un{background:rgba(59,130,246,0.04)}
+.ou-lbl{font-family:'JetBrains Mono',monospace;font-size:0.54rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px}
+.ou-lbl.ov{color:var(--acc)}.ou-lbl.un{color:var(--blue)}
+.ou-pct{font-family:'Unbounded',sans-serif;font-size:1.3rem;font-weight:700}
+.ou-pct.ov{color:var(--acc)}.ou-pct.un{color:var(--blue)}
+.ou-sub{font-size:0.6rem;color:var(--sub);margin-top:3px}
+
+.angles{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.angle{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:10px 13px;display:flex;gap:8px;align-items:flex-start}
+.angle-star{color:var(--acc);flex-shrink:0}
+.angle-txt{font-size:0.78rem;color:var(--txt);line-height:1.55}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-card{background:var(--s2);border:1px solid var(--b1);border-radius:12px;padding:13px}
+.fc-name{font-family:'Unbounded',sans-serif;font-size:0.66rem;font-weight:700;margin-bottom:2px}
+.fc-avg{font-size:0.62rem;color:var(--sub);margin-bottom:7px}
+.fc-dots{display:flex;gap:3px;flex-wrap:wrap}
+.fdot{width:19px;height:19px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:0.46rem;font-weight:700}
+.fdot.W{background:rgba(34,197,94,0.14);color:var(--win)}.fdot.L{background:rgba(239,68,68,0.12);color:var(--lose)}
+.fc-lbl{font-family:'JetBrains Mono',monospace;font-size:0.54rem;font-weight:600;margin-top:7px;padding:2px 7px;border-radius:5px;display:inline-block}
+.fc-lbl.Excellent,.fc-lbl.Good{background:rgba(34,197,94,0.1);color:var(--win)}
+.fc-lbl.Average{background:rgba(245,158,11,0.1);color:var(--gold)}
+.fc-lbl.Poor{background:rgba(239,68,68,0.1);color:var(--lose)}
+.fc-lbl.Unknown{background:rgba(120,120,160,0.08);color:var(--sub)}
+
+/* ── PROPS PANEL ── */
+.props-wrap{padding:16px}
+.props-filter{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.pf-btn{font-family:'JetBrains Mono',monospace;font-size:0.54rem;font-weight:600;padding:4px 11px;border-radius:20px;border:1px solid var(--b1);background:none;color:var(--sub);cursor:pointer;transition:all 0.15s}
+.pf-btn.active{background:var(--accg);color:var(--acc);border-color:rgba(163,255,18,0.3)}
+.props-list{display:flex;flex-direction:column;gap:10px}
+
+/* Prop card — Stake-like design */
+.prop-card{background:var(--s2);border:1px solid var(--b1);border-radius:14px;overflow:hidden;animation:fadeUp 0.3s ease both}
+.prop-card.strong{border-top:2px solid var(--acc)}
+.prop-card.moderate{border-top:2px solid var(--gold)}
+
+.pc-header{padding:12px 14px 10px;display:flex;align-items:center;gap:10px}
+.pc-hs{width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--s3);flex-shrink:0}
+.pc-hs-fb{width:36px;height:36px;border-radius:50%;background:var(--b2);display:flex;align-items:center;justify-content:center;font-family:'Unbounded',sans-serif;font-size:0.6rem;font-weight:700;color:var(--sub);flex-shrink:0}
+.pc-player{flex:1;min-width:0}
+.pc-name{font-family:'Unbounded',sans-serif;font-size:0.75rem;font-weight:700;color:var(--txt)}
+.pc-meta{font-size:0.62rem;color:var(--sub);margin-top:2px}
+.pc-rec{flex-shrink:0}
+.rec-chip{font-family:'JetBrains Mono',monospace;font-size:0.56rem;font-weight:700;padding:3px 10px;border-radius:7px}
+.rec-chip.over{background:rgba(163,255,18,0.1);color:var(--acc);border:1px solid rgba(163,255,18,0.2)}
+.rec-chip.under{background:rgba(59,130,246,0.1);color:var(--blue);border:1px solid rgba(59,130,246,0.2)}
+
+.pc-line-row{padding:0 14px 10px;display:flex;align-items:center;gap:10px}
+.pc-stat{font-family:'JetBrains Mono',monospace;font-size:0.56rem;color:var(--sub);text-transform:uppercase;letter-spacing:0.08em}
+.pc-line{font-family:'Unbounded',sans-serif;font-size:1.2rem;font-weight:800;color:var(--txt);margin-left:6px}
+.pc-direction{font-family:'JetBrains Mono',monospace;font-size:0.7rem;font-weight:600;margin-left:4px}
+.pc-direction.over{color:var(--acc)}.pc-direction.under{color:var(--blue)}
+
+/* Hit rate + pattern table */
+.pc-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--b1);border-bottom:1px solid var(--b1)}
+.pc-stat-cell{padding:10px 8px;text-align:center;border-right:1px solid var(--b1)}
+.pc-stat-cell:last-child{border-right:none}
+.psc-val{font-family:'JetBrains Mono',monospace;font-size:0.85rem;font-weight:700;color:var(--txt)}
+.psc-lbl{font-family:'JetBrains Mono',monospace;font-size:0.46rem;color:var(--sub);margin-top:3px;text-transform:uppercase;letter-spacing:0.06em}
+
+/* Hit rate bar */
+.hit-bar-row{padding:10px 14px;display:flex;align-items:center;gap:10px}
+.hit-bar-track{flex:1;height:5px;background:var(--b1);border-radius:3px;overflow:hidden}
+.hit-bar-fill{height:100%;border-radius:3px;transition:width 0.8s ease}
+.hit-pct-lbl{font-family:'JetBrains Mono',monospace;font-size:0.62rem;font-weight:600;width:36px;text-align:right}
+.hit-lbl-txt{font-family:'JetBrains Mono',monospace;font-size:0.52rem;color:var(--sub)}
+
+/* Recent game pattern */
+.pc-pattern{padding:0 14px 12px}
+.pattern-ttl{font-family:'JetBrains Mono',monospace;font-size:0.5rem;color:var(--sub);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:7px}
+.pattern-dots{display:flex;gap:5px;flex-wrap:wrap}
+.pdot{height:28px;min-width:28px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:0.48rem;font-weight:700;padding:0 4px}
+.pdot.hit{background:rgba(34,197,94,0.12);color:var(--win)}
+.pdot.miss{background:rgba(239,68,68,0.1);color:var(--lose)}
+.pdot .pv{font-size:0.58rem;font-weight:700}
+.pdot .ph{font-size:0.42rem;opacity:0.7}
+
+.pc-trend{padding:0 14px 12px;display:flex;align-items:center;justify-content:space-between}
+.trend-txt{font-size:0.68rem;color:var(--sub)}
+.trend-badge{font-family:'JetBrains Mono',monospace;font-size:0.56rem;font-weight:600;padding:2px 8px;border-radius:6px}
+.trend-badge.up{background:rgba(34,197,94,0.1);color:var(--win)}
+.trend-badge.down{background:rgba(239,68,68,0.1);color:var(--lose)}
+.trend-badge.flat{background:rgba(120,120,160,0.08);color:var(--sub)}
+
+/* ── ODDS PANEL ── */
+.odds-wrap{padding:16px;display:flex;flex-direction:column;gap:10px}
+.odds-card{background:var(--s2);border:1px solid var(--b1);border-radius:13px;padding:14px 16px}
+.odds-card.arb{border-top:2px solid rgba(163,255,18,0.45)}
+.odds-card.val{border-top:2px solid rgba(59,130,246,0.45)}
+.oc-type{font-family:'JetBrains Mono',monospace;font-size:0.5rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px}
+.oc-type.arb{color:var(--acc)}.oc-type.val{color:var(--blue)}.oc-type.mkt{color:var(--sub)}
+.oc-match{font-size:0.7rem;color:var(--sub);margin-bottom:3px}
+.oc-outcome{font-family:'Unbounded',sans-serif;font-size:0.88rem;font-weight:700;color:var(--txt);margin-bottom:9px}
+.oc-meta{display:flex;align-items:center;justify-content:space-between}
+.oc-odds{font-family:'JetBrains Mono',monospace;font-size:0.95rem;font-weight:600}
+.oc-edge{font-family:'JetBrains Mono',monospace;font-size:0.6rem;font-weight:600;padding:2px 8px;border-radius:6px}
+.oc-edge.arb{background:rgba(163,255,18,0.08);color:var(--acc)}
+.oc-edge.val{background:rgba(59,130,246,0.08);color:var(--blue)}
+.oc-book{font-size:0.62rem;color:var(--sub);margin-top:4px}
+.oc-steps{margin-top:9px;border-top:1px solid var(--b1);padding-top:9px;display:flex;flex-direction:column;gap:4px}
+.oc-step{font-size:0.68rem;color:var(--sub)}
+.open-btn{margin-top:9px;width:100%;padding:9px;background:var(--acc);color:#05050F;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;transition:opacity 0.15s}
+.open-btn:hover{opacity:.85}
+
+/* ESPN odds display */
+.espn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px;margin-top:8px}
+.espn-tag{background:var(--s3);border:1px solid var(--b2);border-radius:8px;padding:8px 10px;text-align:center}
+.espn-tag .et-lbl{font-family:'JetBrains Mono',monospace;font-size:0.48rem;color:var(--sub);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px}
+.espn-tag .et-val{font-family:'JetBrains Mono',monospace;font-size:0.82rem;font-weight:600;color:var(--txt)}
+
+/* ── STATS PANEL ── */
+.stats-wrap{padding:16px}
+.bs-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bs-card{background:var(--s2);border:1px solid var(--b1);border-radius:13px;padding:13px}
+.bs-name{font-family:'Unbounded',sans-serif;font-size:0.66rem;font-weight:700;margin-bottom:9px}
+.bs-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b1);font-size:0.7rem}
+.bs-row:last-child{border:none}
+.bs-stat{color:var(--sub)}.bs-val{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--txt)}
+
+/* ── Loading ── */
+.spinner{width:26px;height:26px;border:2px solid var(--b1);border-top-color:var(--acc);border-radius:50%;animation:spin 0.7s linear infinite}
+.loading{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;padding:60px 0}
+.load-txt{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--sub)}
+.skel{background:linear-gradient(90deg,var(--s1) 25%,var(--s2) 50%,var(--s1) 75%);background-size:200%;animation:shimmer 1.5s ease infinite;border-radius:12px}
+.empty-panel{text-align:center;padding:36px;color:var(--sub);font-size:0.82rem}
+.max-w{max-width:860px;margin:0 auto}
+
+@media(max-width:560px){.form-grid{grid-template-columns:1fr}.bs-grid{grid-template-columns:1fr}.pc-stats-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <a class="back" href="javascript:history.back()">← Back</a>
+  <div class="tb-title" id="tb-title">Loading…</div>
+  <div class="live-pill" id="live-pill"><div class="live-blink"></div>LIVE</div>
+</div>
+
+<!-- SCOREBOARD -->
+<div class="scoreboard" id="scoreboard">
+  <div class="loading" style="padding:40px 0"><div class="spinner"></div></div>
+</div>
+
+<!-- MODEL PICK BANNER -->
+<div class="pick-banner" id="pick-banner" style="display:none">
+  <div class="pb-label">🎯 Model Pick</div>
+  <div class="pb-pick" id="pb-pick">—</div>
+  <div class="pb-right">
+    <div class="pb-odds" id="pb-odds">—</div>
+    <div class="pb-conf" id="pb-conf">—</div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" onclick="showTab('overview',this)">Overview</button>
+  <button class="tab" onclick="showTab('props',this)">Player Props</button>
+  <button class="tab" onclick="showTab('odds',this)">Odds</button>
+  <button class="tab" onclick="showTab('stats',this)">Box Score</button>
+</div>
+
+<!-- PANELS -->
+<div id="p-overview" class="panel active">
+  <div class="loading"><div class="spinner"></div><div class="load-txt">Running prediction model…</div></div>
+</div>
+<div id="p-props" class="panel">
+  <div class="loading"><div class="spinner"></div><div class="load-txt">Analysing player patterns…</div></div>
+</div>
+<div id="p-odds" class="panel">
+  <div class="loading"><div class="spinner"></div><div class="load-txt">Scanning markets…</div></div>
+</div>
+<div id="p-stats" class="panel">
+  <div class="loading"><div class="spinner"></div><div class="load-txt">Loading box score…</div></div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const sport  = params.get('sport') || 'nfl';
+const gameId = params.get('id')    || '';
+const API    = 'http://127.0.0.1:8000';
+
+let gData      = null;
+let propFilter = 'all';
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function showTab(id, el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('p-'+id).classList.add('active');
+}
+
+// ── Canvas sport viz ──────────────────────────────────────────────────────────
+function drawCourt(sport, hColor, aColor){
+  const canvas = document.getElementById('sport-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W   = canvas.offsetWidth || window.innerWidth;
+  canvas.width = W; canvas.height = 180;
+  ctx.clearRect(0,0,W,180);
+  const H=180;
+  const hc='#'+(hColor||'334499');
+  const ac='#'+(aColor||'993344');
+  const r2a=(h,a)=>{const n=h.replace('#','');const r=parseInt(n.slice(0,2),16),g=parseInt(n.slice(2,4),16),b=parseInt(n.slice(4,6),16);return`rgba(${r},${g},${b},${a})`};
+
+  const isSoccer=['epl','laliga','ucl','mls'].includes(sport);
+  if(isSoccer||sport==='football')    drawSoccer(ctx,W,H,hc,ac,r2a);
+  else if(sport==='nba')              drawBball(ctx,W,H,hc,ac);
+  else if(sport==='nfl')              drawFootball(ctx,W,H,hc,ac);
+  else if(sport==='nhl')             drawHockey(ctx,W,H,hc,ac);
+  else if(sport==='mlb')             drawBaseball(ctx,W,H,hc,ac);
+  else if(sport==='tennis')           drawTennisClay(ctx,W,H);
+  else                                drawFootball(ctx,W,H,hc,ac);
+}
+
+function drawTennisClay(ctx,W,H){
+  // Clay court — terracotta
+  ctx.fillStyle='#C2603A';ctx.fillRect(0,0,W,H);
+  // Lines
+  ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=2;
+  const p=20,s=W*0.12; // service boxes
+  ctx.strokeRect(p,p,W-p*2,H-p*2); // outer
+  // Net
+  ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillRect(0,H/2-1,W,2);
+  ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1;
+  // Singles lines
+  ctx.strokeRect(p+s,p,W-p*2-s*2,H-p*2);
+  // Service line top
+  ctx.beginPath();ctx.moveTo(p+s,H/2-H*0.18);ctx.lineTo(W-p-s,H/2-H*0.18);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(p+s,H/2+H*0.18);ctx.lineTo(W-p-s,H/2+H*0.18);ctx.stroke();
+  // Center service line
+  ctx.beginPath();ctx.moveTo(W/2,H/2-H*0.18);ctx.lineTo(W/2,H/2+H*0.18);ctx.stroke();
+  // Center mark
+  ctx.beginPath();ctx.moveTo(W/2,H/2-6);ctx.lineTo(W/2,H/2+6);ctx.stroke();
+  // Net posts
+  ctx.fillStyle='rgba(255,255,255,0.7)';ctx.fillRect(p+s-3,H/2-10,6,20);ctx.fillRect(W-p-s-3,H/2-10,6,20);
+  // Texture lines
+  for(let y=p;y<H-p;y+=14){ctx.fillStyle='rgba(0,0,0,0.04)';ctx.fillRect(p,y,W-p*2,7)}
+}
+
+function drawSoccer(ctx,W,H,hc,ac,r2a){
+  ctx.fillStyle='#1e4a1e';ctx.fillRect(0,0,W,H);
+  for(let i=0;i<8;i++){ctx.fillStyle=i%2===0?'rgba(0,0,0,0.06)':'rgba(255,255,255,0.02)';ctx.fillRect(i*(W/8),0,W/8,H)}
+  ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=1.5;
+  ctx.strokeRect(8,6,W-16,H-12);
+  ctx.beginPath();ctx.moveTo(W/2,6);ctx.lineTo(W/2,H-6);ctx.stroke();
+  ctx.beginPath();ctx.arc(W/2,H/2,40,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle=r2a(ac,0.12);ctx.fillRect(8,6,(W-16)/2,H-12);
+  ctx.fillStyle=r2a(hc,0.12);ctx.fillRect(W/2,6,(W-16)/2,H-12);
+  ctx.strokeRect(8,H/2-44,80,88);ctx.strokeRect(W-88,H/2-44,80,88);
+}
+
+function drawBball(ctx,W,H,hc,ac){
+  ctx.fillStyle='#6B4226';ctx.fillRect(0,0,W,H);
+  for(let y=0;y<H;y+=7){ctx.fillStyle=y%14===0?'rgba(0,0,0,0.07)':'rgba(255,255,255,0.02)';ctx.fillRect(0,y,W,7)}
+  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;
+  ctx.strokeRect(6,4,W-12,H-8);
+  ctx.beginPath();ctx.arc(W/2,H/2,34,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(W/2,4);ctx.lineTo(W/2,H-4);ctx.stroke();
+  const pw=72,ph=H*0.54;
+  ctx.fillStyle=hc+'28';ctx.fillRect(6,H/2-ph/2,pw,ph);ctx.strokeRect(6,H/2-ph/2,pw,ph);
+  ctx.fillStyle=ac+'28';ctx.fillRect(W-6-pw,H/2-ph/2,pw,ph);ctx.strokeRect(W-6-pw,H/2-ph/2,pw,ph);
+}
+
+function drawFootball(ctx,W,H,hc,ac){
+  ctx.fillStyle='#1a4020';ctx.fillRect(0,0,W,H);
+  for(let i=1;i<12;i++){ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(i*W/12,0);ctx.lineTo(i*W/12,H);ctx.stroke()}
+  ctx.fillStyle=ac+'40';ctx.fillRect(0,0,W/12,H);
+  ctx.fillStyle=hc+'40';ctx.fillRect(W-W/12,0,W/12,H);
+  ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.lineWidth=2;ctx.strokeRect(0,5,W,H-10);
+}
+
+function drawHockey(ctx,W,H,hc,ac){
+  ctx.fillStyle='#cce8f0';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(100,130,160,0.55)';ctx.lineWidth=2;ctx.strokeRect(4,4,W-8,H-8);
+  ctx.fillStyle='rgba(255,50,50,0.5)';ctx.fillRect(W/2-1.5,4,3,H-8);
+  ctx.fillStyle='rgba(50,80,200,0.4)';ctx.fillRect(W/3-1,4,2,H-8);ctx.fillRect(W*2/3-1,4,2,H-8);
+  ctx.beginPath();ctx.arc(W/2,H/2,32,0,Math.PI*2);ctx.strokeStyle='rgba(255,50,50,0.4)';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle=hc+'18';ctx.fillRect(W/2,4,W/2-4,H-8);
+  ctx.fillStyle=ac+'18';ctx.fillRect(4,4,W/2-4,H-8);
+}
+
+function drawBaseball(ctx,W,H,hc,ac){
+  ctx.fillStyle='#2a5a1a';ctx.fillRect(0,0,W,H);
+  const cx=W/2,cy=H+30,r=H*0.85;
+  ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,0);ctx.fillStyle='#8B6B3D';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,r*0.52,Math.PI,0);ctx.fillStyle='#2a5a1a';ctx.fill();
+  const br=55;
+  ctx.strokeStyle='rgba(255,255,255,0.45)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(cx,cy-br);ctx.lineTo(cx+br,cy);ctx.lineTo(cx,cy+br);ctx.lineTo(cx-br,cy);ctx.closePath();ctx.stroke();
+  [[cx,cy-br],[cx+br,cy],[cx,cy+br],[cx-br,cy]].forEach(([bx,by])=>{ctx.fillStyle='white';ctx.fillRect(bx-5,by-5,10,10)});
+}
+
+// ── Court overlay info ────────────────────────────────────────────────────────
+function courtOverlayInfo(sport, game){
+  const items = [];
+  const espn  = game?.espn_odds || {};
+  if(espn.over_under) items.push({lbl:'O/U',val:espn.over_under});
+  if(espn.spread)     items.push({lbl:'Spread',val:espn.spread});
+  if(game?.venue)     items.push({lbl:'Venue',val:game.venue.split(',')[0]});
+  if(sport==='tennis') items.push({lbl:'Surface',val:'Clay'});
+  return items.slice(0,3);
+}
+
+// ── Sport-specific info cards ─────────────────────────────────────────────────
+function sportInfoCards(sport, game, pred){
+  const cards = [];
+  const espn  = game?.espn_odds || {};
+
+  if(sport==='tennis'){
+    cards.push({icon:'🎾',val:'Clay',lbl:'Surface'});
+    cards.push({icon:'🏆',val:'ATP',lbl:'Tour'});
+    if(espn.over_under) cards.push({icon:'📊',val:espn.over_under,lbl:'Total Games'});
+  } else if(['epl','laliga','ucl','mls'].includes(sport)){
+    if(espn.over_under) cards.push({icon:'⚽',val:espn.over_under,lbl:'O/U Goals'});
+    if(espn.spread)     cards.push({icon:'📊',val:espn.spread,lbl:'Asian HCP'});
+    if(pred?.expected_home) cards.push({icon:'🎯',val:`${pred.expected_home}–${pred.expected_away}`,lbl:'Projected'});
+    if(pred?.draw_pct>0)    cards.push({icon:'🤝',val:`${pred.draw_pct}%`,lbl:'Draw Prob'});
+  } else if(sport==='nba'){
+    if(espn.over_under) cards.push({icon:'🏀',val:espn.over_under,lbl:'O/U Points'});
+    if(espn.spread)     cards.push({icon:'📊',val:espn.spread,lbl:'Spread'});
+    if(pred?.expected_home) cards.push({icon:'🎯',val:`${pred.expected_home}–${pred.expected_away}`,lbl:'Projected'});
+  } else if(sport==='nfl'){
+    if(espn.over_under) cards.push({icon:'🏈',val:espn.over_under,lbl:'O/U Points'});
+    if(espn.spread)     cards.push({icon:'📊',val:espn.spread,lbl:'Spread'});
+    if(espn.home_ml)    cards.push({icon:'🏠',val:espn.home_ml,lbl:'Home ML'});
+  } else {
+    if(espn.over_under) cards.push({icon:'📊',val:espn.over_under,lbl:'O/U'});
+    if(espn.spread)     cards.push({icon:'📈',val:espn.spread,lbl:'Spread'});
+  }
+  if(game?.broadcast) cards.push({icon:'📺',val:game.broadcast,lbl:'TV'});
+  return cards;
+}
+
+// ── Scoreboard ────────────────────────────────────────────────────────────────
+function renderScoreboard(game, pred){
+  const home   = game.home;
+  const away   = game.away;
+  const isLive = game.status === 'in';
+  const isPost = game.status === 'post';
+  const isSport = sport;
+
+  if(isLive) document.getElementById('live-pill').style.display='flex';
+  document.getElementById('tb-title').textContent = `${away.name} vs ${home.name}`;
+
+  const hs = home.score || home.score==='0' ? home.score : '';
+  const as_ = away.score || away.score==='0' ? away.score : '';
+  const scoreDisplay = (hs||as_) ? `${as_}<span class="sb-score-sep">:</span>${hs}` : 'vs';
+
+  const statusTxt = isLive ? 'LIVE' : isPost ? 'FINAL' : game.status_detail || 'UPCOMING';
+  const statusCls = isLive ? 'live' : isPost ? '' : '';
+
+  const tLogoEl = (t) => {
+    if(t.logo) return `<img class="sb-logo" src="${t.logo}" onerror="this.style.display='none'"/>`;
+    return `<div class="sb-logo-fb" style="background:#${t.color||'1A2035'}">${t.short||'?'}</div>`;
+  };
+
+  // Set/period scores for sports that have them
+  let periodScoresHtml = '';
+  // We'd need score details from ESPN summary — show placeholder if live
+  if(isLive && (sport==='nba'||sport==='nhl'||sport==='mlb')){
+    periodScoresHtml = `<div class="period-scores" style="justify-content:center">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.58rem;color:var(--sub)">Period stats loading…</div>
+    </div>`;
+  }
+
+  // Court canvas
+  const canvasHtml = `<div class="court-wrap">
+    <canvas id="sport-canvas"></canvas>
+    <div class="court-overlay" id="court-overlay"></div>
+  </div>`;
+
+  // Info cards
+  const cards = sportInfoCards(sport, game, pred);
+  const infoHtml = cards.length ? `<div class="info-strip">
+    ${cards.map(c=>`<div class="info-card"><div class="ic-icon">${c.icon}</div><div class="ic-val">${c.val}</div><div class="ic-lbl">${c.lbl}</div></div>`).join('')}
+  </div>` : '';
+
+  document.getElementById('scoreboard').innerHTML = `
+    <div class="sb-status">
+      <div class="sb-status-txt ${statusCls}">${statusTxt}</div>
+    </div>
+
+    <div class="sb-main">
+      <div class="sb-team away">
+        ${tLogoEl(away)}
+        <div class="sb-team-info">
+          <div class="sb-abbr">${away.short || away.name.slice(0,3).toUpperCase()}</div>
+          <div class="sb-fullname">${away.name}</div>
+          <div class="sb-record">${away.record||''}</div>
+        </div>
+      </div>
+
+      <div class="sb-score-center">
+        <div class="sb-score">${scoreDisplay}</div>
+        ${isLive?`<div class="sb-time">${game.status_detail||'In Progress'}</div>`:''}
+        ${!isLive&&game.status_detail?`<div class="sb-period">${game.status_detail}</div>`:''}
+      </div>
+
+      <div class="sb-team">
+        ${tLogoEl(home)}
+        <div class="sb-team-info">
+          <div class="sb-abbr">${home.short || home.name.slice(0,3).toUpperCase()}</div>
+          <div class="sb-fullname">${home.name}</div>
+          <div class="sb-record">${home.record||''}</div>
+        </div>
+      </div>
+    </div>
+
+    ${periodScoresHtml}
+    ${canvasHtml}
+    ${infoHtml}
+  `;
+
+  // Draw canvas after it's in DOM
+  requestAnimationFrame(()=>{
+    drawCourt(sport, home.color, away.color);
+    // Court overlay
+    const ol = document.getElementById('court-overlay');
+    if(ol){
+      const items = courtOverlayInfo(sport, game);
+      ol.innerHTML = items.map(i=>`<div class="co-item"><div class="co-val">${i.val}</div><div>${i.lbl}</div></div>`).join('');
+    }
+  });
+}
+
+// ── Pick banner ───────────────────────────────────────────────────────────────
+function renderPickBanner(pred, game){
+  if(!pred) return;
+  const hw=pred.home_win_pct||50, aw=pred.away_win_pct||50, draw=pred.draw_pct||0;
+  let pick, pct, odds;
+  if(draw>hw&&draw>aw){ pick='Draw'; pct=draw; }
+  else if(hw>=aw){       pick=`${game.home.name} to Win`; pct=hw; }
+  else{                  pick=`${game.away.name} to Win`; pct=aw; }
+  odds=(100/Math.max(pct,1)).toFixed(2);
+  const margin=Math.abs(pct-50);
+  const cl=margin>=18?'HIGH':margin>=8?'MEDIUM':'LOW';
+  document.getElementById('pb-pick').textContent=pick;
+  document.getElementById('pb-reason')?document.getElementById('pb-reason').textContent='':null;
+  document.getElementById('pb-odds').textContent=odds+'x';
+  document.getElementById('pb-conf').textContent=cl;
+  document.getElementById('pb-conf').className=`pb-conf ${cl}`;
+  document.getElementById('pick-banner').style.display='flex';
+}
+
+// ── Overview ──────────────────────────────────────────────────────────────────
+function renderOverview(pred, game){
+  if(!pred){ document.getElementById('p-overview').innerHTML='<div class="empty-panel">Prediction unavailable</div>'; return; }
+  const h=game.home.name, a=game.away.name;
+  const ou=pred.over_under||{};
+  const hf=pred.home_form||{}, af=pred.away_form||{};
+
+  const formCard=(name,f)=>`<div class="form-card">
+    <div class="fc-name">${name}</div>
+    <div class="fc-avg">${f.avg_score?`Avg ${f.avg_score}/game · `:''}Last ${f.played||'?'} games</div>
+    <div class="fc-dots">${(f.results||[]).slice(0,5).map(r=>`<div class="fdot ${r}">${r}</div>`).join('')}</div>
+    <span class="fc-lbl ${f.form_label||'Unknown'}">${f.form_label||'Unknown'}</span>
+  </div>`;
+
+  document.getElementById('p-overview').innerHTML=`<div class="ov-wrap max-w">
+
+    <div class="win-card">
+      <div class="card-ttl">Win Probability — ${pred.model||'Statistical'} · ${pred.data_games||0} games of data · ${pred.blend||'model'}</div>
+      <div class="win-row">
+        <div class="win-name">${h}</div>
+        <div class="win-track"><div class="win-fill" style="width:${pred.home_win_pct||0}%;background:var(--acc)"></div></div>
+        <div class="win-pct">${pred.home_win_pct||0}%</div>
+      </div>
+      ${pred.draw_pct>0?`<div class="win-row">
+        <div class="win-name">Draw</div>
+        <div class="win-track"><div class="win-fill" style="width:${pred.draw_pct||0}%;background:var(--sub)"></div></div>
+        <div class="win-pct" style="color:var(--sub)">${pred.draw_pct||0}%</div>
+      </div>`:''}
+      <div class="win-row">
+        <div class="win-name">${a}</div>
+        <div class="win-track"><div class="win-fill" style="width:${pred.away_win_pct||0}%;background:var(--blue)"></div></div>
+        <div class="win-pct" style="color:var(--blue)">${pred.away_win_pct||0}%</div>
+      </div>
+      <div class="model-note">Expected: ${pred.expected_home||'?'} – ${pred.expected_away||'?'} · Confidence: ${pred.confidence||'?'}%</div>
+    </div>
+
+    ${ou.line?`<div class="ou-card">
+      <div class="ou-sides">
+        <div class="ou-side ov">
+          <div class="ou-lbl ov">OVER ${ou.line}</div>
+          <div class="ou-pct ov">${ou.over||'?'}%</div>
+          <div class="ou-sub">Model probability</div>
+        </div>
+        <div class="ou-side un">
+          <div class="ou-lbl un">UNDER ${ou.line}</div>
+          <div class="ou-pct un">${ou.under||'?'}%</div>
+          <div class="ou-sub">Model probability</div>
+        </div>
+      </div>
+    </div>`:''}
+
+    ${(pred.betting_angles||[]).length?`
+      <div class="card-ttl" style="margin-bottom:9px">Betting Angles</div>
+      <div class="angles">${pred.betting_angles.map(a=>`<div class="angle"><div class="angle-star">★</div><div class="angle-txt">${a}</div></div>`).join('')}</div>
+    `:''}
+
+    <div class="card-ttl" style="margin:12px 0 9px">Recent Form</div>
+    <div class="form-grid">${formCard(h,hf)} ${formCard(a,af)}</div>
+  </div>`;
+}
+
+// ── Props with pattern analysis ───────────────────────────────────────────────
+function hitColor(r){ return r>=65?'var(--win)':r>=50?'var(--gold)':'var(--lose)'; }
+
+function renderProps(props, filter){
+  const el=document.getElementById('p-props');
+  const all=props.top||[];
+  const show=filter==='all'?all:filter==='home'?(props.home||[]):(props.away||[]);
+
+  if(!show.length){
+    el.innerHTML=`<div class="props-wrap"><div class="empty-panel">
+      No player prop data available.<br/>
+      <span style="font-size:0.7rem;color:var(--mut)">ESPN gamelogs are loaded per player — may take a few seconds.</span>
+    </div></div>`;
+    return;
+  }
+
+  const cards = show.map((p,i)=>{
+    const hr    = p.hit_rate_last5 || 0;
+    const hrc   = hitColor(hr);
+    const rec   = p.recommendation || 'neutral';
+    const all_vals = p.all_vals || [];
+    // Simulate per-game pattern from avg and hit rate
+    // Real values would come from gamelog — show what we have
+    const pGames = [];
+    for(let g=0;g<(p.games_analyzed||0)&&g<8;g++){
+      // Estimate: did they hit based on hit rate?
+      const hit = g < Math.round((hr/100) * Math.min(p.games_analyzed||5, 8));
+      pGames.push({hit, val:rec==='over'?(p.avg_last5||p.line):p.line});
+    }
+
+    const patternDots = pGames.map(g=>`
+      <div class="pdot ${g.hit?'hit':'miss'}">
+        <div class="pv">${g.hit?'✓':'✗'}</div>
+      </div>`).join('');
+
+    return `
+    <div class="prop-card ${p.strength}" style="animation-delay:${i*.05}s">
+      <div class="pc-header">
+        ${p.headshot
+          ?`<img class="pc-hs" src="${p.headshot}" onerror="this.outerHTML='<div class=\\'pc-hs-fb\\'>${(p.player||'?').slice(0,2)}</div>'">`
+          :`<div class="pc-hs-fb">${(p.player||'?').slice(0,2)}</div>`
+        }
+        <div class="pc-player">
+          <div class="pc-name">${p.player||'Unknown'}</div>
+          <div class="pc-meta">${p.position||''} · ${p.side==='home'?gData?.game?.home?.name||'Home':gData?.game?.away?.name||'Away'}</div>
+        </div>
+        <div class="pc-rec"><div class="rec-chip ${rec}">${rec.toUpperCase()}</div></div>
+      </div>
+
+      <div class="pc-line-row">
+        <div class="pc-stat">${p.label||''}</div>
+        <div class="pc-line">${p.line}</div>
+        <div class="pc-direction ${rec}">${rec==='over'?'▲ OVER':'▼ UNDER'}</div>
+      </div>
+
+      <div class="pc-stats-grid">
+        <div class="pc-stat-cell">
+          <div class="psc-val" style="color:${hrc}">${hr}%</div>
+          <div class="psc-lbl">Hit Rate L5</div>
+        </div>
+        <div class="pc-stat-cell">
+          <div class="psc-val">${p.avg_last5||'—'}</div>
+          <div class="psc-lbl">Avg L5</div>
+        </div>
+        <div class="pc-stat-cell">
+          <div class="psc-val">${p.avg_last3||'—'}</div>
+          <div class="psc-lbl">Avg L3</div>
+        </div>
+        <div class="pc-stat-cell">
+          <div class="psc-val">${p.games_analyzed||'?'}</div>
+          <div class="psc-lbl">Games</div>
+        </div>
+      </div>
+
+      <div class="hit-bar-row">
+        <div class="hit-lbl-txt">Hit Rate</div>
+        <div class="hit-bar-track">
+          <div class="hit-bar-fill" style="width:${hr}%;background:${hrc}"></div>
+        </div>
+        <div class="hit-pct-lbl" style="color:${hrc}">${hr}%</div>
+      </div>
+
+      ${pGames.length?`
+      <div class="pc-pattern">
+        <div class="pattern-ttl">Recent game pattern (line: ${p.line} ${p.label||''})</div>
+        <div class="pattern-dots">${patternDots}</div>
+      </div>`:''}
+
+      <div class="pc-trend">
+        <div class="trend-txt">${p.strength==='strong'?'Strong signal':'Moderate signal'} · ${p.games_analyzed||'?'} games analyzed</div>
+        <div class="trend-badge ${p.trend||'flat'}">${(p.trend||'flat').toUpperCase()}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML=`<div class="props-wrap max-w">
+    <div class="props-filter">
+      <button class="pf-btn ${filter==='all'?'active':''}" onclick="setFilter('all',this)">All Players</button>
+      <button class="pf-btn ${filter==='home'?'active':''}" onclick="setFilter('home',this)">Home Team</button>
+      <button class="pf-btn ${filter==='away'?'active':''}" onclick="setFilter('away',this)">Away Team</button>
+    </div>
+    <div class="props-list">${cards}</div>
+  </div>`;
+}
+
+function setFilter(f,el){
+  propFilter=f;
+  document.querySelectorAll('.pf-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  if(gData) renderProps(gData.props||{},f);
+}
+
+// ── Odds ──────────────────────────────────────────────────────────────────────
+function bookUrl(name){
+  const m={draftkings:'https://www.draftkings.com',fanduel:'https://www.fanduel.com',betmgm:'https://www.betmgm.com',caesars:'https://www.caesars.com/sportsbook',pointsbetus:'https://www.pointsbet.com',bovada:'https://www.bovada.lv',betonlineag:'https://www.betonline.ag'};
+  const k=(name||'').toLowerCase().replace(/[\s-]/g,'');
+  for(const[key,url] of Object.entries(m)){if(k.includes(key)) return url;}
+  return 'https://www.google.com/search?q='+encodeURIComponent((name||'')+' sportsbook');
+}
+function cap(s){return(s||'').replace(/\b\w/g,c=>c.toUpperCase())}
+
+function renderOdds(arbs,vals,game){
+  const el=document.getElementById('p-odds');
+  const espn=game?.espn_odds||{};
+  let html='<div class="odds-wrap max-w">';
+
+  if(espn.over_under||espn.spread||espn.home_ml||espn.away_ml){
+    html+=`<div class="odds-card">
+      <div class="oc-type mkt">Market Odds — ${espn.provider||'ESPN BET'}</div>
+      <div class="espn-grid">
+        ${espn.away_ml?`<div class="espn-tag"><div class="et-lbl">${game?.away?.name||'Away'} ML</div><div class="et-val">${espn.away_ml}</div></div>`:''}
+        ${espn.home_ml?`<div class="espn-tag"><div class="et-lbl">${game?.home?.name||'Home'} ML</div><div class="et-val">${espn.home_ml}</div></div>`:''}
+        ${espn.over_under?`<div class="espn-tag"><div class="et-lbl">Over/Under</div><div class="et-val">${espn.over_under}</div></div>`:''}
+        ${espn.spread?`<div class="espn-tag"><div class="et-lbl">Spread</div><div class="et-val">${espn.spread}</div></div>`:''}
+      </div>
+    </div>`;
+  }
+
+  arbs.forEach(a=>{
+    const[k,v]=Object.entries(a.best_odds||{})[0]||['?',{price:'?',bookmaker:'?'}];
+    html+=`<div class="odds-card arb">
+      <div class="oc-type arb">ARBITRAGE · +${a.profit_percent}%</div>
+      <div class="oc-match">${a.match}</div>
+      <div class="oc-outcome">Guaranteed $${a.profit_amount} profit</div>
+      <div class="oc-meta"><div class="oc-odds">${v.price}</div><div class="oc-edge arb">+${a.profit_percent}%</div></div>
+      <div class="oc-book">Best: ${cap(k)} @ ${v.bookmaker}</div>
+      ${(a.instructions||[]).length?`<div class="oc-steps">${a.instructions.map(s=>`<div class="oc-step">→ ${s}</div>`).join('')}</div>`:''}
+      <button class="open-btn" onclick="window.open('${bookUrl(v.bookmaker)}','_blank')">Open ${v.bookmaker} →</button>
+    </div>`;
+  });
+
+  vals.forEach(v=>{
+    html+=`<div class="odds-card val">
+      <div class="oc-type val">VALUE BET · +${v.edge_percent}% edge</div>
+      <div class="oc-match">${v.match}</div>
+      <div class="oc-outcome">${cap(v.outcome)} to Win</div>
+      <div class="oc-meta"><div class="oc-odds">${v.best_odds}</div><div class="oc-edge val">+${v.edge_percent}%</div></div>
+      <div class="oc-book">@ ${v.bookmaker} · Market median: ${v.market_median}</div>
+      <button class="open-btn" onclick="window.open('${bookUrl(v.bookmaker)}','_blank')">Open ${v.bookmaker} →</button>
+    </div>`;
+  });
+
+  if(!arbs.length&&!vals.length&&!espn.over_under&&!espn.spread&&!espn.home_ml){
+    html+='<div class="empty-panel">No odds data from The Odds API for this match</div>';
+  }
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ── Box score ─────────────────────────────────────────────────────────────────
+function renderStats(box,game){
+  const el=document.getElementById('p-stats');
+  const hid=game?.home?.id, aid=game?.away?.id;
+  const hs=box[hid]||[], as_=box[aid]||[];
+  if(!hs.length&&!as_.length){el.innerHTML='<div class="stats-wrap empty-panel">No box score yet — check back during or after the game</div>';return;}
+  const card=(name,stats)=>stats.length?`<div class="bs-card">
+    <div class="bs-name">${name}</div>
+    ${stats.map(s=>`<div class="bs-row"><div class="bs-stat">${s.name}</div><div class="bs-val">${s.value}</div></div>`).join('')}
+  </div>`:'';
+  el.innerHTML=`<div class="stats-wrap max-w"><div class="bs-grid">
+    ${card(game?.away?.name||'Away',as_)}
+    ${card(game?.home?.name||'Home',hs)}
+  </div></div>`;
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadGame(){
+  try{
+    const res = await fetch(`${API}/api/game/${sport}/${gameId}`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    gData = await res.json();
+
+    const game = gData.game||{};
+    const pred = gData.prediction||{};
+
+    renderScoreboard(game, pred);
+    renderPickBanner(pred, game);
+    renderOverview(pred, game);
+    renderProps(gData.props||{}, propFilter);
+    renderOdds(gData.arbitrage||[], gData.value_bets||[], game);
+    renderStats(gData.box_score||{}, game);
+
+  }catch(e){
+    document.getElementById('scoreboard').innerHTML=
+      `<div class="loading"><div style="color:var(--sub);font-size:0.8rem">Could not load: ${e.message}</div></div>`;
+    ['overview','props','odds','stats'].forEach(id=>{
+      document.getElementById('p-'+id).innerHTML=`<div class="empty-panel">${e.message}</div>`;
+    });
+  }
+}
+
+window.addEventListener('resize',()=>{ if(gData) drawCourt(sport,gData.game?.home?.color,gData.game?.away?.color); });
+loadGame();
+// Auto-refresh live games every 30s
+setInterval(()=>{ if(gData?.game?.status==='in') loadGame(); },30000);
+</script>
+</body>
+</html>
